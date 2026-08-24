@@ -1,0 +1,4 @@
+input.mp4
+output/
+*.ass
+__pycache__/
