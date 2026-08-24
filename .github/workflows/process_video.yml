@@ -37,14 +37,26 @@ jobs:
           pip install -r requirements.txt
           pip install --upgrade yt-dlp
 
+      - name: Save YouTube Cookies from Secrets
+        env:
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+        run: |
+          echo "$YOUTUBE_COOKIES" > cookies.txt
+          echo "File cookies.txt berhasil dibuat."
+
       - name: Download Video via yt-dlp
         run: |
           yt-dlp --no-playlist \
-            --extractor-args "youtube:player_client=android,web" \
+            --cookies cookies.txt \
+            --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
             -f "b[ext=mp4]/bv*[ext=mp4]+ba[ext=m4a]/b" \
             --recode-video mp4 \
             --output "input.mp4" \
             "${{ github.event.inputs.video_url }}"
+
+      - name: Clean Up Cookies File
+        if: always()
+        run: rm -f cookies.txt
 
       - name: Run Auto Clipper Script
         env:
