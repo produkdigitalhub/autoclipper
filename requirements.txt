@@ -2,3 +2,4 @@ openai-whisper
 google-genai
 ffmpeg-python
 python-dotenv
+yt-dlp
