@@ -1,34 +1,47 @@
-- name: Download Video (yt-dlp with Fallback)
+name: Auto Clipper (Manual Input)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install FFmpeg
         run: |
-          URL="${{ github.event.inputs.video_url }}"
-          
-          # Coba download via yt-dlp dengan client iOS / TV
-          yt-dlp --no-playlist \
-            --cookies cookies.txt \
-            --extractor-args "youtube:player_client=ios,tv" \
-            -f "b[ext=mp4]/bv*[ext=mp4]+ba[ext=m4a]/b" \
-            --recode-video mp4 \
-            --output "input.mp4" \
-            "$URL" || {
-              echo "yt-dlp gagal karena Error 429. Menggunakan Cobalt API Fallback..."
-              
-              # Extract Video ID dari URL YouTube
-              VIDEO_ID=$(echo "$URL" | grep -oP '(v=|\/)([a-zA-Z0-9_-]{11})' | grep -oP '[a-zA-Z0-9_-]{11}')
-              CLEAN_URL="https://www.youtube.com/watch?v=$VIDEO_ID"
-              
-              curl -X POST "https://api.cobalt.tools/api/json" \
-                -H "Accept: application/json" \
-                -H "Content-Type: application/json" \
-                -d "{\"url\": \"$CLEAN_URL\", \"videoQuality\": \"720\"}" \
-                -o cobalt_response.json
-              
-              DOWNLOAD_URL=$(python -c "import json; print(json.load(open('cobalt_response.json')).get('url', ''))")
-              
-              if [ -n "$DOWNLOAD_URL" ]; then
-                echo "Mengunduh file video dari Cobalt mirror..."
-                curl -L "$DOWNLOAD_URL" -o input.mp4
-              else
-                echo "Gagal mendapatkan link download alternatif."
-                exit 1
-              fi
-            }
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify Input Video
+        run: |
+          if [ ! -f "input.mp4" ]; then
+            echo "ERROR: File 'input.mp4' tidak ditemukan di repositori!"
+            echo "Silakan upload file video Anda dan beri nama 'input.mp4' sebelum menjalankan Actions."
+            exit 1
+          fi
+          echo "File input.mp4 berhasil ditemukan. Memulai proses pemotongan..."
+
+      - name: Run Auto Clipper Script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python main.py
+
+      - name: Upload Output Clips
+        uses: actions/upload-artifact@v4
+        with:
+          name: auto-clipped-parts
+          path: output/
