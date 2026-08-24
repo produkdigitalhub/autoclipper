@@ -125,9 +125,16 @@ def process_long_video(video_path, output_dir="output"):
         print(f"Selesai: {output_video}")
 
 if __name__ == "__main__":
-    # Ganti dengan nama file video input Anda
     video_input = "input.mp4"
+    
+    # Jika input.mp4 tidak ada, cari file .mp4 lain di direktori utama
+    if not os.path.exists(video_input):
+        mp4_files = [f for f in os.listdir('.') if f.endswith('.mp4')]
+        if mp4_files:
+            video_input = mp4_files[0]
+            print(f"Meninggalkan pencarian default, menggunakan file yang ditemukan: {video_input}")
+    
     if os.path.exists(video_input):
         process_long_video(video_input)
     else:
-        print(f"File {video_input} tidak ditemukan!")
+        print(f"Error: File video '{video_input}' tidak ditemukan di direktori!")
