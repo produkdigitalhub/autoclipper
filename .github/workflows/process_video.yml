@@ -1,70 +1,34 @@
-name: Auto Clipper
-
-on:
-  workflow_dispatch:
-    inputs:
-      video_url:
-        description: 'Masukkan Link Video YouTube / URL Direct Video'
-        required: true
-        default: 'https://www.youtube.com/watch?v=...'
-
-jobs:
-  process:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Set up Node.js (JS Runtime for yt-dlp)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install FFmpeg
+- name: Download Video (yt-dlp with Fallback)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-
-      - name: Install Dependencies & Latest yt-dlp
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install --upgrade yt-dlp
-
-      - name: Save YouTube Cookies from Secrets
-        env:
-          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
-        run: |
-          echo "$YOUTUBE_COOKIES" > cookies.txt
-          echo "File cookies.txt berhasil dibuat."
-
-      - name: Download Video via yt-dlp
-        run: |
+          URL="${{ github.event.inputs.video_url }}"
+          
+          # Coba download via yt-dlp dengan client iOS / TV
           yt-dlp --no-playlist \
             --cookies cookies.txt \
-            --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            --extractor-args "youtube:player_client=ios,tv" \
             -f "b[ext=mp4]/bv*[ext=mp4]+ba[ext=m4a]/b" \
             --recode-video mp4 \
             --output "input.mp4" \
-            "${{ github.event.inputs.video_url }}"
-
-      - name: Clean Up Cookies File
-        if: always()
-        run: rm -f cookies.txt
-
-      - name: Run Auto Clipper Script
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python main.py
-
-      - name: Upload Output Clips (Download Button)
-        uses: actions/upload-artifact@v4
-        with:
-          name: auto-clipped-parts
-          path: output/
+            "$URL" || {
+              echo "yt-dlp gagal karena Error 429. Menggunakan Cobalt API Fallback..."
+              
+              # Extract Video ID dari URL YouTube
+              VIDEO_ID=$(echo "$URL" | grep -oP '(v=|\/)([a-zA-Z0-9_-]{11})' | grep -oP '[a-zA-Z0-9_-]{11}')
+              CLEAN_URL="https://www.youtube.com/watch?v=$VIDEO_ID"
+              
+              curl -X POST "https://api.cobalt.tools/api/json" \
+                -H "Accept: application/json" \
+                -H "Content-Type: application/json" \
+                -d "{\"url\": \"$CLEAN_URL\", \"videoQuality\": \"720\"}" \
+                -o cobalt_response.json
+              
+              DOWNLOAD_URL=$(python -c "import json; print(json.load(open('cobalt_response.json')).get('url', ''))")
+              
+              if [ -n "$DOWNLOAD_URL" ]; then
+                echo "Mengunduh file video dari Cobalt mirror..."
+                curl -L "$DOWNLOAD_URL" -o input.mp4
+              else
+                echo "Gagal mendapatkan link download alternatif."
+                exit 1
+              fi
+            }
