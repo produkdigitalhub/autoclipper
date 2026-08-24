@@ -1,7 +1,12 @@
 name: Auto Clipper
 
 on:
-  workflow_dispatch: # Jalankan manual dari tombol GitHub Actions
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: 'Masukkan Link Video YouTube / URL Direct Video'
+        required: true
+        default: 'https://www.youtube.com/watch?v=...'
 
 jobs:
   process:
@@ -24,7 +29,17 @@ jobs:
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Auto Clipper
+      - name: Download Video via yt-dlp
+        run: |
+          yt-dlp --no-playlist -f "b[ext=mp4]/bv*[ext=mp4]+ba[ext=m4a]/b" \
+            --recode-video mp4 \
+            -o "input.mp4" \
+            "${{ github.event.inputs.video_url }}"
+
+      - name: Check Downloaded File
+        run: ls -la
+
+      - name: Run Auto Clipper Script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python main.py
